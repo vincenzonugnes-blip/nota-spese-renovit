@@ -561,6 +561,14 @@ function toggleKey() {
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 
+const apiInput = document.getElementById('inp-apikey');
+const savedKey = localStorage.getItem('renovit_apikey');
+if (savedKey) apiInput.value = savedKey;
+apiInput.addEventListener('change', () => {
+  if (apiInput.value.trim()) localStorage.setItem('renovit_apikey', apiInput.value.trim());
+  else localStorage.removeItem('renovit_apikey');
+});
+
 function setStatus(msg, loading = false) {
   statusBar.innerHTML = loading
     ? `<div class="spinner"></div><span>${msg}</span>`
@@ -605,7 +613,7 @@ Ogni oggetto deve avere esattamente questi campi:
 - tipo_doc: string ("Scontrino" o "Fattura")
 Rispondi SOLO con il JSON array, niente altro.`;
 
-  const resp = await fetch('https://corsproxy.io/?https://api.anthropic.com/v1/messages', {
+  const resp = await fetch('https://anthropic-proxy.vincenzonugnes.workers.dev/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
