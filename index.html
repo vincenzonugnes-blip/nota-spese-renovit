@@ -745,12 +745,58 @@ function exportExcel(simple = false) {
 
   if (simple) {
     const data = [
+      ['NOTA SPESE — ' + (periodo || '').toUpperCase()],
+      ['Dipendente: ' + dipendente],
+      [''],
       ['Data','Esercente','N. Documento','Voce','Tipo doc','Descrizione','Importo €'],
       ...rows.map(r => [r.data, r.esercente, r.n_documento, r.voce, r.tipo_doc, r.descrizione, parseFloat(r.importo||0)]),
       ['','','','','','TOTALE', total]
     ];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    ws['!cols'] = [10,18,12,12,10,30,10].map(w => ({ wch: w }));
+    ws['!cols'] = [12,22,14,14,10,36,12].map(w => ({ wch: w }));
+
+    // Stile intestazione titolo
+    const titleCell = ws['A1'];
+    if (titleCell) titleCell.s = { font: { bold: true, sz: 14 }, fill: { fgColor: { rgb: '1a1917' } }, font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } } };
+
+    // Stile header colonne (riga 4)
+    ['A4','B4','C4','D4','E4','F4','G4'].forEach(addr => {
+      if (ws[addr]) ws[addr].s = {
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '3a3835' } },
+        alignment: { horizontal: 'center' }
+      };
+    });
+
+    // Stile righe dati alternate
+    const dataStart = 5;
+    const dataEnd = dataStart + rows.length - 1;
+    for (let r = dataStart; r <= dataEnd; r++) {
+      const isEven = (r - dataStart) % 2 === 0;
+      ['A','B','C','D','E','F','G'].forEach(col => {
+        const addr = col + r;
+        if (ws[addr]) {
+          ws[addr].s = {
+            fill: { fgColor: { rgb: isEven ? 'F5F4F0' : 'FFFFFF' } },
+            border: {
+              bottom: { style: 'thin', color: { rgb: 'DDDBD5' } }
+            }
+          };
+        }
+      });
+      // importo allineato a destra
+      const gAddr = 'G' + r;
+      if (ws[gAddr]) ws[gAddr].s = { ...ws[gAddr].s, alignment: { horizontal: 'right' }, numFmt: '#,##0.00' };
+    }
+
+    // Stile riga TOTALE
+    const totRow = dataEnd + 1;
+    const totAddr = 'G' + totRow;
+    if (ws[totAddr]) ws[totAddr].s = { font: { bold: true }, alignment: { horizontal: 'right' }, numFmt: '#,##0.00', fill: { fgColor: { rgb: 'E8E6E1' } } };
+    const totLabelAddr = 'F' + totRow;
+    if (ws[totLabelAddr]) ws[totLabelAddr].s = { font: { bold: true }, fill: { fgColor: { rgb: 'E8E6E1' } } };
+
+    ws['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 6 }, { hpt: 20 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Nota Spese');
   } else {
     const wsData = [];
