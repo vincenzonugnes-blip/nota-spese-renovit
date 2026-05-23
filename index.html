@@ -605,7 +605,7 @@ Ogni oggetto deve avere esattamente questi campi:
 - tipo_doc: string ("Scontrino" o "Fattura")
 Rispondi SOLO con il JSON array, niente altro.`;
 
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  const resp = await fetch('https://corsproxy.io/?https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
