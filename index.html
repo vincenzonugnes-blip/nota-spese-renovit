@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nota Spese — Renovit</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: #dddbd5;
+    --border-strong: #b8b5ae;
+    --text: #1a1917;
+    --text-muted: #6b6860;
+    --text-faint: #a8a59f;
+    --accent: #1a1917;
+    --accent-light: #e8e6e1;
+    --green: #2d6a4f;
+    --green-light: #d8f3dc;
+    --amber: #7d4e00;
+    --amber-light: #fff3cd;
+    --blue: #1a3a5c;
+    --blue-light: #dce8f5;
+    --red: #7a1f1f;
+    --red-light: #fde8e8;
+    --radius: 6px;
+    --font-sans: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--accent);
+    color: #fff;
+    padding: 0 2rem;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .logo span { opacity: 0.4; margin: 0 8px; }
+
+  .header-right {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    opacity: 0.5;
+  }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+
+  .step-header {
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg);
+  }
+
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--border);
+    border-radius: 3px;
+    padding: 1px 7px;
+  }
+
+  .step-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .step-body { padding: 1.25rem; }
+
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+
+  .field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 5px;
+    font-family: var(--font-mono);
+  }
+
+  input[type=text], input[type=password] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text);
+    transition: border-color 0.15s;
+  }
+
+  input[type=text]:focus, input[type=password]:focus {
+    outline: none;
+    border-color: var(--border-strong);
+  }
+
+  .api-row { display: flex; gap: 8px; align-items: flex-end; }
+  .api-row input { flex: 1; }
+
+  .drop-zone {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--bg);
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  .drop-icon {
+    font-size: 32px;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
+
+  .drop-text { font-size: 14px; color: var(--text-muted); }
+  .drop-sub { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+
+  .file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 8px 3px 10px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+  }
+
+  .chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-faint);
+    font-size: 15px;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+  }
+
+  .chip-remove:hover { color: var(--red); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  .btn-outline:hover { background: var(--accent-light); }
+  .btn-outline:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-green {
+    background: var(--green);
+    color: #fff;
+    border-color: var(--green);
+  }
+
+  .btn-green:hover { opacity: 0.85; }
+  .btn-green:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    min-height: 32px;
+    padding: 6px 0;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 1.25rem;
+  }
+
+  .metric {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    margin-bottom: 4px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+    font-weight: 300;
+    font-family: var(--font-mono);
+    color: var(--text);
+  }
+
+  .table-wrap { overflow-x: auto; margin-bottom: 1.25rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  thead th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    background: var(--bg);
+  }
+
+  tbody td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--bg); }
+
+  .editable {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid transparent;
+    font-size: 12px;
+    font-family: var(--font-sans);
+    color: var(--text);
+    padding: 2px 0;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+
+  .editable:focus {
+    outline: none;
+    border-bottom-color: var(--border-strong);
+    background: var(--accent-light);
+    padding: 2px 4px;
+  }
+
+  .editable-num {
+    text-align: right;
+    width: 70px;
+    font-family: var(--font-mono);
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .badge-pranzo { background: var(--blue-light); color: var(--blue); }
+  .badge-cena { background: var(--amber-light); color: var(--amber); }
+  .badge-pernottamento { background: var(--green-light); color: var(--green); }
+  .badge-altro { background: var(--accent-light); color: var(--text-muted); }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .msg-ok { font-size: 12px; color: var(--green); font-family: var(--font-mono); padding: 4px 0; }
+  .msg-err { font-size: 12px; color: var(--red); font-family: var(--font-mono); padding: 4px 0; }
+
+  .toggle-pass {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+  }
+
+  .toggle-pass:hover { background: var(--accent-light); }
+
+  .hint {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    font-family: var(--font-mono);
+  }
+
+  select.editable {
+    appearance: auto;
+    cursor: pointer;
+  }
+
+  .total-row { font-weight: 500; background: var(--accent-light) !important; }
+  .total-row td { font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Nota Spese <span>|</span> Renovit</div>
+  <div class="header-right">v1.0 — Estrazione automatica da scontrini</div>
+</header>
+
+<main>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">01</span>
+      <span class="step-title">Chiave API Anthropic</span>
+    </div>
+    <div class="step-body">
+      <div class="field">
+        <label>API Key</label>
+        <div class="api-row">
+          <input type="password" id="inp-apikey" placeholder="sk-ant-api03-..." autocomplete="off">
+          <button class="toggle-pass" onclick="toggleKey()">mostra</button>
+        </div>
+        <div class="hint">La chiave non viene salvata né inviata ad altri server. Rimane nel browser.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">02</span>
+      <span class="step-title">Dati trasferta</span>
+    </div>
+    <div class="step-body">
+      <div class="field-grid">
+        <div class="field">
+          <label>Dipendente</label>
+          <input type="text" id="inp-dipendente" value="Vincenzo Nugnes" placeholder="Nome Cognome">
+        </div>
+        <div class="field">
+          <label>Periodo</label>
+          <input type="text" id="inp-periodo" placeholder="Es. Maggio 2026">
+        </div>
+        <div class="field">
+          <label>Codice commessa</label>
+          <input type="text" id="inp-commessa" placeholder="Es. C-2026-PAD">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-header">
+      <span class="step-num">03</span>
+      <span class="step-title">Carica scontrini</span>
+    </div>
+    <div class="step-body">
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <div class="drop-icon">↑</div>
+        <div class="drop-text">Trascina i PDF qui oppure clicca per selezionare</div>
+        <div class="drop-sub">PDF da Adobe Scan, JPG, PNG — anche più file insieme</div>
+      </div>
+      <input type="file" id="file-input" multiple accept=".pdf,.jpg,.jpeg,.png" style="display:none">
+      <div class="file-chips" id="file-chips"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step-analyze">
+    <div class="step-header">
+      <span class="step-num">04</span>
+      <span class="step-title">Estrazione AI</span>
+    </div>
+    <div class="step-body">
+      <div class="status-bar" id="status-bar">In attesa.</div>
+      <div style="display:flex; gap:8px; margin-top:4px;">
+        <button class="btn btn-primary" id="btn-analyze" onclick="analyzeAll()">Analizza scontrini</button>
+        <button class="btn btn-outline" id="btn-reset" onclick="resetAll()" style="display:none">Ricomincia</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="step" id="step-results" style="display:none">
+    <div class="step-header">
+      <span class="step-num">05</span>
+      <span class="step-title">Verifica e correggi</span>
+    </div>
+    <div class="step-body">
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">Scontrini</div>
+          <div class="metric-value" id="m-count">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Totale</div>
+          <div class="metric-value" id="m-total">€ 0,00</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">File elaborati</div>
+          <div class="metric-value" id="m-files">0</div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Esercente</th>
+              <th>N. Documento</th>
+              <th>Voce</th>
+              <th>Tipo doc</th>
+              <th>Descrizione</th>
+              <th style="text-align:right">Importo €</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-green" onclick="exportExcel()">↓ Scarica Excel (formato Renovit)</button>
+        <button class="btn btn-outline" onclick="exportExcel(true)">↓ Scarica Excel semplice</button>
+      </div>
+      <div id="export-msg"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const files = [];
+const rows = [];
+
+const fileInput = document.getElementById('file-input');
+const dropZone = document.getElementById('drop-zone');
+const fileChips = document.getElementById('file-chips');
+const statusBar = document.getElementById('status-bar');
+const stepResults = document.getElementById('step-results');
+const resultsBody = document.getElementById('results-body');
+
+fileInput.addEventListener('change', e => addFiles([...e.target.files]));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  addFiles([...e.dataTransfer.files]);
+});
+
+function addFiles(newFiles) {
+  newFiles.forEach(f => {
+    if (!files.find(x => x.name === f.name && x.size === f.size)) files.push(f);
+  });
+  renderChips();
+}
+
+function removeFile(idx) {
+  files.splice(idx, 1);
+  renderChips();
+}
+
+function renderChips() {
+  fileChips.innerHTML = files.map((f, i) =>
+    `<span class="chip">${f.name} <button class="chip-remove" onclick="removeFile(${i})" aria-label="Rimuovi">×</button></span>`
+  ).join('');
+}
+
+function toggleKey() {
+  const inp = document.getElementById('inp-apikey');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function setStatus(msg, loading = false) {
+  statusBar.innerHTML = loading
+    ? `<div class="spinner"></div><span>${msg}</span>`
+    : `<span>${msg}</span>`;
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function getMediaType(file) {
+  if (file.type === 'application/pdf') return 'application/pdf';
+  if (file.type.startsWith('image/')) return file.type;
+  if (file.name.toLowerCase().endsWith('.pdf')) return 'application/pdf';
+  return 'image/jpeg';
+}
+
+async function analyzeFile(file, apiKey) {
+  const b64 = await fileToBase64(file);
+  const mediaType = getMediaType(file);
+  const isPdf = mediaType === 'application/pdf';
+
+  const contentItem = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } };
+
+  const prompt = `Sei un assistente specializzato nell'estrazione dati da scontrini fiscali italiani.
+Analizza questo documento e restituisci SOLO un array JSON valido.
+Se il PDF ha più pagine, crea un oggetto per ogni scontrino/pagina.
+Ogni oggetto deve avere esattamente questi campi:
+- data: string DD/MM/YYYY
+- esercente: string (nome del locale)
+- n_documento: string (numero documento es. "2434-0010", se non trovato metti "")
+- voce: string (uno tra: Pranzo, Cena, Pernottamento, Pasto unico, Trasporto - pedaggi parcheggi, Vitto altro)
+- descrizione: string (es. "Trattoria Da Pippo - Pranzo lavoro menu fisso")
+- importo: number (importo totale pagato in euro)
+- tipo_doc: string ("Scontrino" o "Fattura")
+Rispondi SOLO con il JSON array, niente altro.`;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-calls': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: [contentItem, { type: 'text', text: prompt }] }]
+    })
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const text = data.content?.find(b => b.type === 'text')?.text || '[]';
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+async function analyzeAll() {
+  const apiKey = document.getElementById('inp-apikey').value.trim();
+  if (!apiKey) { setStatus('Inserisci la chiave API prima di procedere.'); return; }
+  if (!files.length) { setStatus('Carica almeno un file prima di procedere.'); return; }
+
+  const btn = document.getElementById('btn-analyze');
+  btn.disabled = true;
+  rows.length = 0;
+  stepResults.style.display = 'none';
+
+  let errors = 0;
+  for (let i = 0; i < files.length; i++) {
+    setStatus(`File ${i + 1}/${files.length}: ${files[i].name}`, true);
+    try {
+      const extracted = await analyzeFile(files[i], apiKey);
+      extracted.forEach(r => rows.push(r));
+    } catch(e) {
+      errors++;
+      setStatus(`Errore su ${files[i].name}: ${e.message}`);
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+
+  rows.sort((a, b) => {
+    const parse = d => {
+      if (!d) return 0;
+      const p = d.split('/');
+      return new Date(parseInt(p[2]) || 2026, (parseInt(p[1]) || 1) - 1, parseInt(p[0]) || 1);
+    };
+    return parse(a.data) - parse(b.data);
+  });
+
+  const msg = errors ? `Completato con ${errors} errori. ${rows.length} voci estratte.` : `Completato. ${rows.length} voci estratte da ${files.length} file.`;
+  setStatus(msg);
+  btn.disabled = false;
+  document.getElementById('btn-reset').style.display = 'inline-flex';
+  if (rows.length) renderResults();
+}
+
+function resetAll() {
+  rows.length = 0;
+  files.length = 0;
+  renderChips();
+  stepResults.style.display = 'none';
+  setStatus('In attesa.');
+  document.getElementById('btn-reset').style.display = 'none';
+  document.getElementById('btn-analyze').disabled = false;
+}
+
+function voceBadge(voce) {
+  const v = (voce || '').toLowerCase();
+  if (v.includes('pranzo')) return `<span class="badge badge-pranzo">Pranzo</span>`;
+  if (v.includes('cena')) return `<span class="badge badge-cena">Cena</span>`;
+  if (v.includes('pernottamento')) return `<span class="badge badge-pernottamento">Pernott.</span>`;
+  return `<span class="badge badge-altro">${voce || 'Altro'}</span>`;
+}
+
+const VOCI = ['Pranzo','Cena','Pernottamento','Pasto unico','Trasporto - pedaggi parcheggi','Vitto altro'];
+
+function renderResults() {
+  stepResults.style.display = 'block';
+  updateMetrics();
+
+  resultsBody.innerHTML = rows.map((r, i) => `
+    <tr>
+      <td><input class="editable" value="${r.data||''}" onchange="rows[${i}].data=this.value" style="width:88px"></td>
+      <td><input class="editable" value="${r.esercente||''}" onchange="rows[${i}].esercente=this.value" style="min-width:110px"></td>
+      <td><input class="editable" value="${r.n_documento||''}" onchange="rows[${i}].n_documento=this.value" style="width:90px; font-family:var(--font-mono)"></td>
+      <td>${voceBadge(r.voce)}</td>
+      <td>
+        <select class="editable" onchange="rows[${i}].tipo_doc=this.value" style="width:90px">
+          <option ${r.tipo_doc==='Scontrino'?'selected':''}>Scontrino</option>
+          <option ${r.tipo_doc==='Fattura'?'selected':''}>Fattura</option>
+        </select>
+      </td>
+      <td><input class="editable" value="${r.descrizione||''}" onchange="rows[${i}].descrizione=this.value" style="min-width:180px"></td>
+      <td style="text-align:right">
+        <input class="editable editable-num" type="number" step="0.01"
+          value="${parseFloat(r.importo||0).toFixed(2)}"
+          onchange="rows[${i}].importo=parseFloat(this.value)||0; updateMetrics()">
+      </td>
+    </tr>
+  `).join('');
+}
+
+function updateMetrics() {
+  const total = rows.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
+  document.getElementById('m-count').textContent = rows.length;
+  document.getElementById('m-total').textContent = '€ ' + total.toFixed(2).replace('.', ',');
+  document.getElementById('m-files').textContent = files.length;
+}
+
+function exportExcel(simple = false) {
+  if (!rows.length) return;
+  document.getElementById('export-msg').innerHTML = '';
+
+  const dipendente = document.getElementById('inp-dipendente').value || 'DIPENDENTE';
+  const periodo = document.getElementById('inp-periodo').value || '';
+  const commessa = document.getElementById('inp-commessa').value || '';
+  const total = rows.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
+
+  const wb = XLSX.utils.book_new();
+
+  if (simple) {
+    const data = [
+      ['Data','Esercente','N. Documento','Voce','Tipo doc','Descrizione','Importo €'],
+      ...rows.map(r => [r.data, r.esercente, r.n_documento, r.voce, r.tipo_doc, r.descrizione, parseFloat(r.importo||0)]),
+      ['','','','','','TOTALE', total]
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [10,18,12,12,10,30,10].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Nota Spese');
+  } else {
+    const wsData = [];
+    wsData.push(['Allegato 03 - Modello rendicontazione nota spese']);
+    wsData.push(['Revisione del 02/08/2022']);
+    wsData.push([]);
+    wsData.push(['REN-RGL-011-R00 - Trasferte del Personale']);
+    wsData.push(['Revisione del 02/08/2022']);
+    wsData.push([]);
+    wsData.push([]);
+    wsData.push([]);
+    wsData.push([`Io sottoscritto ${dipendente} dipendente di codesta azienda dichiaro di aver sostenuto le sottoelencate spese per ordine e conto della stessa`]);
+    wsData.push([]);
+    wsData.push([]);
+    wsData.push([`Periodo di trasferta ${periodo}`]);
+    wsData.push([]);
+    wsData.push(['N trasferta','Data partenza','Data arrivo','Localita di spesa','Data spesa','Tipologia di documento','N documento','Voce di spesa','Descrizione','Controvalore','Codice commessa','Note']);
+
+    let n = 1;
+    let prevMonth = null;
+    rows.forEach(r => {
+      const parts = (r.data || '').split('/');
+      const month = parts[1] || '';
+      if (prevMonth && month !== prevMonth) n++;
+      prevMonth = month;
+      wsData.push([n, '', '', '', r.data || '', r.tipo_doc || 'Scontrino', r.n_documento || '', r.voce || '', r.descrizione || '', parseFloat(r.importo || 0), commessa, '']);
+    });
+
+    wsData.push([]);
+    const totRow = new Array(12).fill('');
+    totRow[3] = 'TOTALE';
+    totRow[9] = total;
+    wsData.push(totRow);
+    wsData.push([]);
+    wsData.push([dipendente, '', '', '----------------------------']);
+    wsData.push(['Firma dipendente', '', '', 'Firma responsabile aziendale']);
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [6,11,11,9,11,11,12,14,38,12,10,8].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Modulo note spese');
+  }
+
+  const fname = `nota_spese_${(periodo || 'export').replace(/\s/g, '_')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  document.getElementById('export-msg').innerHTML = `<span class="msg-ok">✓ File scaricato: ${fname}</span>`;
+}
+</script>
+</body>
+</html>
