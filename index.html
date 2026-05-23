@@ -635,8 +635,9 @@ Rispondi SOLO con il JSON array, niente altro.`;
 
   const data = await resp.json();
   const text = data.content?.find(b => b.type === 'text')?.text || '[]';
-  const clean = text.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) return [];
+  try { return JSON.parse(match[0]); } catch { return []; }
 }
 
 async function analyzeAll() {
