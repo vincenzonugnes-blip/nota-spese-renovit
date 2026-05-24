@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Nota Spese — Renovit</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap');
 
@@ -509,8 +511,8 @@
       </div>
 
       <div class="actions">
-        <button class="btn btn-green" onclick="exportExcel()">↓ Scarica Excel (formato Renovit)</button>
-        <button class="btn btn-outline" onclick="exportExcel(true)">↓ Scarica Excel semplice</button>
+        <button class="btn btn-green" onclick="exportPDF()">↓ Scarica PDF</button>
+        <button class="btn btn-outline" onclick="exportExcel(true)">↓ Scarica Excel</button>
       </div>
       <div id="export-msg"></div>
     </div>
@@ -611,6 +613,7 @@ Ogni oggetto deve avere esattamente questi campi:
 - descrizione: string (es. "Trattoria Da Pippo - Pranzo lavoro menu fisso")
 - importo: number (importo totale pagato in euro)
 - tipo_doc: string ("Scontrino" o "Fattura")
+REGOLA IMPORTANTE per la voce: guarda l'orario dello scontrino. Se l'orario e' prima delle 17:00 usa "Pranzo", se e' dalle 17:00 in poi usa "Cena". Se e' un hotel usa "Pernottamento". Se non c'e' orario, usa il contesto (es. "pranzo" o "cena" scritto nello scontrino).
 Rispondi SOLO con il JSON array, niente altro.`;
 
   const resp = await fetch('https://anthropic-proxy.vincenzonugnes.workers.dev/', {
@@ -842,6 +845,114 @@ function exportExcel(simple = false) {
   const fname = `nota_spese_${(periodo || 'export').replace(/\s/g, '_')}.xlsx`;
   XLSX.writeFile(wb, fname);
   document.getElementById('export-msg').innerHTML = `<span class="msg-ok">✓ File scaricato: ${fname}</span>`;
+}
+
+function exportPDF() {
+  if (!rows.length) return;
+  document.getElementById('export-msg').innerHTML = '';
+
+  const dipendente = document.getElementById('inp-dipendente').value || 'DIPENDENTE';
+  const periodo = document.getElementById('inp-periodo').value || '';
+  const total = rows.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  // Header
+  doc.setFillColor(26, 25, 23);
+  doc.rect(0, 0, 297, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('NOTA SPESE — RENOVIT', 14, 11);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('v1.0 — Estrazione automatica da scontrini', 240, 11);
+
+  // Titolo e info
+  doc.setTextColor(26, 25, 23);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nota Spese — ' + (periodo || '').toUpperCase(), 14, 28);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(107, 104, 96);
+  doc.text('Dipendente: ' + dipendente, 14, 34);
+  doc.text('Totale: € ' + total.toFixed(2).replace('.', ','), 14, 39);
+
+  // Tabella
+  const tableRows = rows.map(r => [
+    r.data || '',
+    r.esercente || '',
+    r.n_documento || '',
+    r.voce || '',
+    r.tipo_doc || '',
+    r.descrizione || '',
+    '€ ' + parseFloat(r.importo || 0).toFixed(2).replace('.', ',')
+  ]);
+
+  // Riga totale
+  tableRows.push(['', '', '', '', '', 'TOTALE', '€ ' + total.toFixed(2).replace('.', ',')]);
+
+  doc.autoTable({
+    startY: 44,
+    head: [['Data', 'Esercente', 'N. Documento', 'Voce', 'Tipo doc', 'Descrizione', 'Importo €']],
+    body: tableRows,
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.5,
+      font: 'helvetica',
+      textColor: [26, 25, 23],
+      lineColor: [221, 219, 213],
+      lineWidth: 0.2,
+    },
+    headStyles: {
+      fillColor: [58, 56, 53],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
+    alternateRowStyles: {
+      fillColor: [245, 244, 240],
+    },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      1: { cellWidth: 42 },
+      2: { cellWidth: 25 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 'auto' },
+      6: { cellWidth: 22, halign: 'right' },
+    },
+    didParseCell: function(data) {
+      // Riga totale in grassetto
+      if (data.row.index === tableRows.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [232, 230, 225];
+      }
+      // Badge colorati per voce
+      if (data.column.index === 3 && data.section === 'body') {
+        const v = (data.cell.raw || '').toLowerCase();
+        if (v.includes('pranzo')) data.cell.styles.textColor = [26, 58, 92];
+        else if (v.includes('cena')) data.cell.styles.textColor = [125, 78, 0];
+        else if (v.includes('pernottamento')) data.cell.styles.textColor = [45, 106, 79];
+      }
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Footer
+  const pageH = doc.internal.pageSize.getHeight();
+  doc.setDrawColor(221, 219, 213);
+  doc.line(14, pageH - 12, 283, pageH - 12);
+  doc.setFontSize(8);
+  doc.setTextColor(168, 165, 159);
+  doc.text('Firma dipendente: ________________________', 14, pageH - 6);
+  doc.text('Firma responsabile: ________________________', 150, pageH - 6);
+
+  const fname = `nota_spese_${(periodo || 'export').replace(/\s/g, '_')}.pdf`;
+  doc.save(fname);
+  document.getElementById('export-msg').innerHTML = `<span class="msg-ok">✓ PDF scaricato: ${fname}</span>`;
 }
 </script>
 </body>
