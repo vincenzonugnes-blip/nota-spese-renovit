@@ -511,10 +511,50 @@
       </div>
 
       <div class="actions">
+        <button class="btn btn-primary" onclick="addToTrasferta()">+ Aggiungi a trasferta</button>
         <button class="btn btn-green" onclick="exportPDF()">↓ Scarica PDF</button>
         <button class="btn btn-outline" onclick="exportExcel(true)">↓ Scarica Excel</button>
       </div>
       <div id="export-msg"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step-trasferta" style="display:none">
+    <div class="step-header">
+      <span class="step-num">06</span>
+      <span class="step-title">Trasferta accumulata</span>
+    </div>
+    <div class="step-body">
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">Voci totali</div>
+          <div class="metric-value" id="t-count">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Totale</div>
+          <div class="metric-value" id="t-total">€ 0,00</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Settimane</div>
+          <div class="metric-value" id="t-weeks">0</div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th><th>Esercente</th><th>N. Documento</th><th>Voce</th><th>Tipo doc</th><th>Descrizione</th><th style="text-align:right">Importo €</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="trasferta-body"></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn btn-green" onclick="exportPDFFull()">↓ Scarica PDF completo</button>
+        <button class="btn btn-outline" onclick="exportExcelFull()">↓ Scarica Excel completo</button>
+        <button class="btn btn-outline" style="color:var(--red); border-color:var(--red)" onclick="clearTrasferta()">Svuota trasferta</button>
+      </div>
+      <div id="trasferta-msg"></div>
     </div>
   </div>
 
@@ -523,6 +563,8 @@
 <script>
 const files = [];
 const rows = [];
+let trasferta = JSON.parse(localStorage.getItem('renovit_trasferta') || '[]');
+let weekCount = parseInt(localStorage.getItem('renovit_weeks') || '0');
 
 const fileInput = document.getElementById('file-input');
 const dropZone = document.getElementById('drop-zone');
@@ -736,26 +778,30 @@ function updateMetrics() {
 }
 
 function exportExcel(simple = false) {
-  if (!rows.length) return;
+  exportExcelData(rows);
+}
+
+function exportExcelData(data) {
+  if (!data.length) return;
   document.getElementById('export-msg').innerHTML = '';
 
   const dipendente = document.getElementById('inp-dipendente').value || 'DIPENDENTE';
   const periodo = document.getElementById('inp-periodo').value || '';
   const commessa = document.getElementById('inp-commessa').value || '';
-  const total = rows.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
+  const total = data.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
 
   const wb = XLSX.utils.book_new();
 
-  if (simple) {
-    const data = [
+  if (true) {
+    const sheetData = [
       ['NOTA SPESE — ' + (periodo || '').toUpperCase()],
       ['Dipendente: ' + dipendente],
       [''],
       ['Data','Esercente','N. Documento','Voce','Tipo doc','Descrizione','Importo €'],
-      ...rows.map(r => [r.data, r.esercente, r.n_documento, r.voce, r.tipo_doc, r.descrizione, parseFloat(r.importo||0)]),
+      ...data.map(r => [r.data, r.esercente, r.n_documento, r.voce, r.tipo_doc, r.descrizione, parseFloat(r.importo||0)]),
       ['','','','','','TOTALE', total]
     ];
-    const ws = XLSX.utils.aoa_to_sheet(data);
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws['!cols'] = [12,22,14,14,10,36,12].map(w => ({ wch: w }));
 
     // Stile intestazione titolo
@@ -773,7 +819,7 @@ function exportExcel(simple = false) {
 
     // Stile righe dati alternate
     const dataStart = 5;
-    const dataEnd = dataStart + rows.length - 1;
+    const dataEnd = dataStart + data.length - 1;
     for (let r = dataStart; r <= dataEnd; r++) {
       const isEven = (r - dataStart) % 2 === 0;
       ['A','B','C','D','E','F','G'].forEach(col => {
@@ -801,45 +847,6 @@ function exportExcel(simple = false) {
 
     ws['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 6 }, { hpt: 20 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Nota Spese');
-  } else {
-    const wsData = [];
-    wsData.push(['Allegato 03 - Modello rendicontazione nota spese']);
-    wsData.push(['Revisione del 02/08/2022']);
-    wsData.push([]);
-    wsData.push(['REN-RGL-011-R00 - Trasferte del Personale']);
-    wsData.push(['Revisione del 02/08/2022']);
-    wsData.push([]);
-    wsData.push([]);
-    wsData.push([]);
-    wsData.push([`Io sottoscritto ${dipendente} dipendente di codesta azienda dichiaro di aver sostenuto le sottoelencate spese per ordine e conto della stessa`]);
-    wsData.push([]);
-    wsData.push([]);
-    wsData.push([`Periodo di trasferta ${periodo}`]);
-    wsData.push([]);
-    wsData.push(['N trasferta','Data partenza','Data arrivo','Localita di spesa','Data spesa','Tipologia di documento','N documento','Voce di spesa','Descrizione','Controvalore','Codice commessa','Note']);
-
-    let n = 1;
-    let prevMonth = null;
-    rows.forEach(r => {
-      const parts = (r.data || '').split('/');
-      const month = parts[1] || '';
-      if (prevMonth && month !== prevMonth) n++;
-      prevMonth = month;
-      wsData.push([n, '', '', '', r.data || '', r.tipo_doc || 'Scontrino', r.n_documento || '', r.voce || '', r.descrizione || '', parseFloat(r.importo || 0), commessa, '']);
-    });
-
-    wsData.push([]);
-    const totRow = new Array(12).fill('');
-    totRow[3] = 'TOTALE';
-    totRow[9] = total;
-    wsData.push(totRow);
-    wsData.push([]);
-    wsData.push([dipendente, '', '', '----------------------------']);
-    wsData.push(['Firma dipendente', '', '', 'Firma responsabile aziendale']);
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    ws['!cols'] = [6,11,11,9,11,11,12,14,38,12,10,8].map(w => ({ wch: w }));
-    XLSX.utils.book_append_sheet(wb, ws, 'Modulo note spese');
   }
 
   const fname = `nota_spese_${(periodo || 'export').replace(/\s/g, '_')}.xlsx`;
@@ -848,12 +855,16 @@ function exportExcel(simple = false) {
 }
 
 function exportPDF() {
-  if (!rows.length) return;
+  exportPDFData(rows, false);
+}
+
+function exportPDFData(data, full = false) {
+  if (!data.length) return;
   document.getElementById('export-msg').innerHTML = '';
 
   const dipendente = document.getElementById('inp-dipendente').value || 'DIPENDENTE';
   const periodo = document.getElementById('inp-periodo').value || '';
-  const total = rows.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
+  const total = data.reduce((s, r) => s + (parseFloat(r.importo) || 0), 0);
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -881,7 +892,7 @@ function exportPDF() {
   doc.text('Totale: € ' + total.toFixed(2).replace('.', ','), 14, 39);
 
   // Tabella
-  const tableRows = rows.map(r => [
+  const tableRows = data.map(r => [
     r.data || '',
     r.esercente || '',
     r.n_documento || '',
@@ -954,6 +965,77 @@ function exportPDF() {
   doc.save(fname);
   document.getElementById('export-msg').innerHTML = `<span class="msg-ok">✓ PDF scaricato: ${fname}</span>`;
 }
+
+// ===== TRASFERTA ACCUMULATA =====
+
+function saveTrasferta() {
+  localStorage.setItem('renovit_trasferta', JSON.stringify(trasferta));
+  localStorage.setItem('renovit_weeks', weekCount.toString());
+}
+
+function addToTrasferta() {
+  if (!rows.length) return;
+  weekCount++;
+  rows.forEach(r => trasferta.push({...r}));
+  trasferta.sort((a, b) => {
+    const parse = d => { if (!d) return 0; const p = d.split('/'); return new Date(parseInt(p[2])||2026,(parseInt(p[1])||1)-1,parseInt(p[0])||1); };
+    return parse(a.data) - parse(b.data);
+  });
+  saveTrasferta();
+  renderTrasferta();
+  document.getElementById('export-msg').innerHTML = '<span class="msg-ok">✓ ' + rows.length + ' voci aggiunte alla trasferta (settimana ' + weekCount + ')</span>';
+}
+
+function removeFromTrasferta(idx) {
+  trasferta.splice(idx, 1);
+  saveTrasferta();
+  renderTrasferta();
+}
+
+function clearTrasferta() {
+  if (!confirm('Svuotare tutta la trasferta accumulata?')) return;
+  trasferta = [];
+  weekCount = 0;
+  saveTrasferta();
+  renderTrasferta();
+}
+
+function renderTrasferta() {
+  const step = document.getElementById('step-trasferta');
+  if (!trasferta.length) { step.style.display = 'none'; return; }
+  step.style.display = 'block';
+  const total = trasferta.reduce((s, r) => s + (parseFloat(r.importo)||0), 0);
+  document.getElementById('t-count').textContent = trasferta.length;
+  document.getElementById('t-total').textContent = '€ ' + total.toFixed(2).replace('.', ',');
+  document.getElementById('t-weeks').textContent = weekCount;
+
+  const tbody = document.getElementById('trasferta-body');
+  tbody.innerHTML = trasferta.map((r, i) => `
+    <tr>
+      <td>${r.data||''}</td>
+      <td>${r.esercente||''}</td>
+      <td style="font-family:var(--font-mono)">${r.n_documento||''}</td>
+      <td>${voceBadge(r.voce)}</td>
+      <td>${r.tipo_doc||''}</td>
+      <td>${r.descrizione||''}</td>
+      <td style="text-align:right;font-family:var(--font-mono)">€ ${parseFloat(r.importo||0).toFixed(2)}</td>
+      <td><button class="chip-remove" onclick="removeFromTrasferta(${i})" title="Rimuovi">×</button></td>
+    </tr>
+  `).join('');
+}
+
+function exportPDFFull() {
+  exportPDFData(trasferta, true);
+}
+
+function exportExcelFull() {
+  exportExcelData(trasferta);
+}
+
+// Carica trasferta salvata al load
+window.addEventListener('load', () => {
+  if (trasferta.length) renderTrasferta();
+});
 </script>
 </body>
 </html>
